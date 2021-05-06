@@ -1,0 +1,139 @@
+---
+title: "KNN"
+author: " "
+date: |
+  `r format(Sys.time(), '%B %d, %Y')` 
+output: 
+  html_document:
+    toc: TRUE
+    toc_depth: 4
+    toc_float: true
+    toc_collapse: true
+    theme: united
+    highlight: zenburn
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	message = FALSE,
+	warning = FALSE
+)
+pacman::p_load(dplyr, ggplot2, tidyr, zoo, caret, class, MASS, knitr, biotools)     
+```
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	message = FALSE,
+	warning = FALSE
+)
+pacman::p_load(dplyr, ggplot2, tidyr, zoo, caret, class, MASS, knitr, biotools)     
+```
+
+# k-NN prediction for one event
+
+```{r include=FALSE}
+load("dt.rda")
+```
+
+```{r}
+df_predicted_list <- list()
+LN <- length(unique(dt$meta_id)) # 791
+
+defKNN <- function(RANGE){ # for repeatedly change the test data
+for(t_i in 1:LN){
+  
+test <- dt[dt$meta_id %in% unique(dt$meta_id)[t_i],] 
+train <-  dt[!(dt$meta_id %in% unique(dt$meta_id)[t_i]),]
+train$RowID <- 1:nrow(train)
+  
+    Range <- RANGE  # Create place for Final data for prediction
+    df_predicted <- data.frame(DayOut = Range,
+                               meta_id = test$meta_id[1], 
+                               FINA_Real = test$FINA[1])
+    
+    for(i in 1:length(Range)){
+      
+      ts <- test[test$daysOut == Range[i], c("amount", "soldCount")]
+      
+      
+      if(nrow(ts) != 0){
+        
+        ts$RowID <- 999999; ts$FINA <- 999999
+        
+        # Scaling train data for chosen DTG
+        tr <- train[train$daysOut == Range[i], c("amount", "soldCount", "RowID", "FINA")] %>% mutate(soldCount_sc = scale(soldCount), amount_sc = scale(amount)) # %>% arrange(RowID)
+        ValidN <- nrow(tr)
+        
+        # Scaling test data for chosen DTG
+        ts <- mutate(ts, amount_sc = (amount - mean(tr$amount))/sd(tr$amount),  soldCount_sc = (soldCount - mean(tr$soldCount))/sd(tr$soldCount))
+        tr <- tr[,-c(1, 2)]
+        ts <- ts[,-c(1,2)]
+        trmah <- rbind(tr,ts)[,-c(1,2)]
+        
+        
+        tr$Dist <- 1:ValidN
+        
+        CM <- cov(trmah[1:ValidN,])
+        
+        for(j in 1:ValidN){
+          tr$Dist[j] <- D2.dist(trmah[c(j,ValidN+1),], CM) # The main problem  cov(trmah[c(j,15),-3]) ? or cov with test ? or cov only with trani (this is correct to me)
+        }
+        
+sel_data <- head(arrange(tr, Dist), sqrt(ValidN))$FINA
+df_predicted$FINA_Pred[i] <- mean(sel_data)
+df_predicted$SD[i] <- sd(sel_data) / mean(sel_data) * 100
+df_predicted$ValidN[i] <- ValidN
+      
+}else{
+        df_predicted$FINA_Pred[i] <- NA; df_predicted$SD[i] <- NA }
+    } #for
+    df_predicted_list[[t_i]] <- df_predicted;     names(df_predicted_list)[t_i] <- test$meta_id[1]
+} 
+  df_predicted_list
+}
+```
+
+
+```{r}
+start_time <- Sys.time()
+df_predicted_list_1 <- defKNN(RANGE = 34:35)
+end <- Sys.time()
+end - start_time
+length(df_predicted_list_1)
+```
+
+```{r}
+start_time1 <- Sys.time()
+list_final <- list()
+
+x <- 0
+for(i in 1:791){
+  
+if(any(is.na(df_predicted_list_1[[i]]))==TRUE) {
+  x <- c(x,i)
+}
+  
+}
+
+x[-1]
+
+for(i in 1:nrow(df_predicted_list_1[[1]])){
+  
+  list_final[[i]] <- as.data.frame(do.call(rbind, lapply(df_predicted_list_1[-x[-1]], function(x) filter(x, DayOut == c(32:33)[i]))))
+  list_final[[i]]  <- list_final[[i]]  %>% na.omit()
+}
+
+save(file = "list_final_32_33.rda", list_final)
+end1 <- Sys.time()
+end1 - start_time1
+
+
+```
+
+
+
+
+
