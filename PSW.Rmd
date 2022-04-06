@@ -1,0 +1,246 @@
+---
+title: "Covid 19 Documentation of Post-stratification weights"
+author: " "
+date: |
+ `r format(Sys.Date(),'%d %b, %Y')`
+fontsize: 12pt
+output: 
+    pdf_document:
+      toc: true 
+      toc_depth: 4  
+urlcolor: blue      
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+pacman::p_load(ggplot2, dplyr, MASS, readxl, labelVector, chron, stringr, knitr, kableExtra, stringr, pander, png, gridExtra, survey, stargazer)
+#list.files()
+```
+
+\pagebreak
+
+
+
+
+<!-- # Loading and cleaning the data -->
+
+```{r data, message=FALSE, warning=FALSE, include=FALSE}
+# Loading data
+#setwd("E:\\UN proposal_COVID19\\Report")
+load("COVID_19.rda")
+levels(COVID_19$Q2.Gender) <- c("Man", "Woman")
+table(COVID_19$Category)
+COVID_19$Category[COVID_19$Category%in%"Disabled"] <- "People with disabilities"
+
+
+Yerevan350 <- read_excel("Yerevan384.xlsx")[,158]
+
+set.seed(2708)
+sum(!(COVID_19$ID  %in% Yerevan350$`_id`[sample(334)])) # 3191
+
+covid <- COVID_19 %>% 
+  dplyr::select(-c("RespPhNumber", "Start", "End", "Date", "Surveystatus",
+    "IviewerCode", "Q0.Approval", "Duration")) %>%
+  filter(!(COVID_19$ID  %in% Yerevan350$`_id`[sample(334)]))
+
+
+3523 - sum(COVID_19$ID  %in% Yerevan350$`_id`) + 50 == dim(covid)[1]
+
+sample <- read.csv("sample.csv", stringsAsFactors = F)
+
+# Data transformations
+
+## Grouping age for weights and visualization (Barplots)
+
+covid$Q3.Age_group <- cut(covid$Q3.Age, breaks = c(18, 24, 34, 44, 54, 64, 
+  max(covid$Q3.Age, na.rm = T)), include.lowest = T)
+levels(covid$Q3.Age_group) <- c("18-24", "25-34", "35-44", "45-54", "55-64", "65+")
+
+## Grouping homemates number for visualization (Barplots)
+
+covid$Q7.Home <- cut(covid$Q7.Home, breaks = c(-0.1, 1,  3,  5, 
+  max(covid$Q7.Home, na.rm = T)))
+levels(covid$Q7.Home) <- c("0-1", "2-3", "4-5", "6+")
+
+# Factors
+covid$CommunityType <- factor(covid$CommunityType)
+
+categorynew <- ifelse(covid$Beneficiaries=="Yes" & is.na(covid$Category), "Beneficiaries", covid$Category)
+categorynew <- ifelse(covid$Disabled=="Yes" & is.na(covid$Category), "People with disabilities", categorynew)
+categorynew <- ifelse(covid$LargeFamilies=="Yes" & is.na(covid$Category), "Large families", categorynew)
+categorynew <- ifelse(covid$SingleRetirees =="Yes" & is.na(covid$Category), "Single retirees", categorynew)
+
+covid$Category <- factor(categorynew)
+ 
+# relevel to deleve them with tail in CatTabWg
+# covid$Q21.1.Help.Support <- DescTools::reorder.factor(covid$Q21.1.Help.Support, new.order =  c("Yes","No", "Refuse to answer", "Hard to say"))
+# 
+# covid$Q21.Violence <- DescTools::reorder.factor(covid$Q21.Violence, new.order =  c("Yes","No", "Refuse to answer", "I do not know" ))
+
+
+# oldLevesGyn <- levels(covid$Q22.Gynecol)
+# oldLevesCont <- levels(covid$Q22.1.Contr)
+# 
+# covid$Q22.Gynecol <- DescTools::reorder.factor(covid$Q22.Gynecol, new.order =  c("I faced major difficulties", "No need for these services","I faced some difficulties",   "Did not face any difficulties", "Refuse to answer"))
+# covid$Q22.1.Contr <- DescTools::reorder.factor(covid$Q22.1.Contr, new.order =  c("I faced major difficulties", "No need for these services","I faced some difficulties",   "Did not face any difficulties", "Refuse to answer"))
+
+covid$Q22.Gynecol<- ifelse(covid$Q22.Gynecol %in% c("I faced major difficulties", "I faced some difficulties"), "I faced some or major difficulties", as.character(covid$Q22.Gynecol))
+
+covid$Q22.1.Contr <- ifelse(covid$Q22.1.Contr %in% c("I faced major difficulties", "I faced some difficulties"), "I faced some or major difficulties", as.character(covid$Q22.1.Contr))
+
+levels(covid$Q9.2.Leave) <- trimws(levels(covid$Q9.2.Leave))
+levels(covid$Q9.7.OnBusiness) <- trimws(levels(covid$Q9.7.OnBusiness))
+levels(covid$CommunityType)[2] <- "Consolidated mixed"
+# Labels
+source("SourceFile.R")
+covid <- labName(covid)
+```
+
+
+
+\pagebreak
+
+# Introduction
+
+Usually, different groups respond to survey questions differently according to factors such as gender, age, and other demographic characteristics. In order to generalize findings obtained from samples to the population from which the sample was drawn the representative samples are needed. 
+
+If sample distributions do not perfectly resemble population distributions other methods for minimizing response bias are used because samples that are underrepresented and/or overrepresented based on demographic subgroups can introduce bias that distorts both the accuracy and the inferences made about the results. To correct for sampling bias we are going to reweight the data using a population-based adjustment called post-stratification weight.
+
+
+
+# Methodology 
+
+ 
+  Every element in the strata should have an equal chance to be included in the sample. Most accurate estimates will be obtained only after weighing the data.  The purpose of poststratification weighting is to ensure that the sample various subpopulation groups match that of the known population.  
+
+ The weights will be constructed using the information on age group, gender, and region. The post-stratification weights are obtained by adjusting the design weights in such a way that they will replicate the distribution of the cross-classification of age group, gender, and the marginal distribution for the region in the population. 
+ 
+ The population distributions for the adjusting variables are derived based on
+Population Censuses obtained from [The Demographic Handbook of Armenia (2019)](https://www.armstat.am/file/article/demog_2019_2.pdf). See Table \ref{tab:taban1}.
+
+ Steps for calculating post-stratification weights are presented in the next section.
+
+# Post-stratification weights
+
+## Calculating weight 
+
+ Step 1: Populate the Proportion of Population column by dividing the value for each group in the Population (N) column by its column Total
+ 
+ Step 2: Populate the Proportion of Sample column by dividing the value for each group in the Sample (n) column by its column Total
+ 
+ Step 3: Calculate Weight by dividing the value in each cell of the Proportion of Population column by the value in each cell of the Proportion of Sample column.^[Royal KD. Survey research methods: A guide for creating post-stratification weights to correct for sample bias.]
+
+Step 1 and 2: Calculating Sample and Population proportions (see code below).
+
+```{r include=FALSE}
+## Adding population size from given data
+wdat <- cbind(c(rep("Man", 6), rep("Woman", 6)), 
+  read_excel("COVID SAMPLE Post Stratification weights.xlsx",
+    sheet = "Population Weight", range = "B2:M14"))
+colnames(wdat)[1] <- "Gender"
+wdat$Age[wdat$Age == "20-24"] <- "18-24" 
+# From wide to long format:
+```
+
+
+```{r}
+# Population data 
+ldat <- tidyr::gather(wdat, Marz, Population, Yerevan:Tavush, 
+  factor_key=TRUE)
+
+# Calculating Population Proportion
+dist.pop <- ldat %>% 
+  group_by(Marz) %>%
+  mutate(Proportion.Pop = Population/sum(Population))
+
+# The same for sample:
+dist.sample <- covid %>% 
+  group_by(Q1.Marz, Q2.Gender, Q3.Age_group) %>%
+  summarise(Size = n()) %>%
+  ungroup() %>%
+  group_by(Q1.Marz)%>%
+  mutate(Proportion.Sample = Size/sum(Size)) 
+```
+
+
+Sample and Population proportions for two regions - Yerevan and Aragatsotn are represented in Table \ref{tab:tab1}. In the first group (Region - Yerevan, Gender - Man) the largest discrepancies observed between the sample and population percentages were between age group 65+. The proportion of Population values will then divided by Proportion of Sample values (e.g., 0.0723 divided by 0.01973 equals 3.661) to determine the Weight. As the proportion of this subcase in sample is less than in population the weight is greater than 1. 
+
+
+Step 3: Calculate Weight by dividing `Proportion.Population` by `Proportion.Sample`, then merging the results to the whole data `covid.clean`. 
+The subset of the dataset with weights can be seen in Table \ref{tab:subset1}.
+
+```{r eval=FALSE, include=FALSE}
+# Checking
+dim(dist.pop)[1] == dim(dist.sample)[1] 
+```
+
+```{r message=FALSE, warning=FALSE, results='asis'}
+# Adding Popilation proportion
+dist.sample$Proportion.Population <- dist.pop[,5] %>% pull()
+
+# Calculating Weights 
+dist.sample <- dist.sample %>% 
+  mutate(Weight = Proportion.Population/Proportion.Sample)
+
+# Merging weights to the whole data
+covid <- merge(covid, dist.sample[, -c(4:6)],
+  all.x = T, by.x=c("Q1.Marz", "Q2.Gender", "Q3.Age_group"),       
+  by.y=c("Q1.Marz", "Q2.Gender", "Q3.Age_group")) 
+```
+
+\clearpage
+
+## Applying weights (example)
+
+After weights are calculated, the weights need to be applied to the data. Let's compare weighted versus unweighted results considering the question about the quality of obtained information. From the Table \ref{tab:sorceval}, e.g. the proportion of males who considered that the information was "Clear and helped prepare" is less compared to the unweighted results, whereas the "Confusing/contradictory" is choosen more by about $2\%$ (note that the proportion of males was increased as a result of post-stratification weighting, so the weighted results are more representative and less biased). 
+
+```{r sorceval, echo=FALSE}
+a <- prop.table(questionr::wtd.table(x = covid[,"Q2.Gender"], y = covid[,"Q8.1.SourceEval"],weights = covid$Weight), 1)
+
+b <- prop.table(questionr::wtd.table(x = covid[,"Q2.Gender"], y = covid[,"Q8.1.SourceEval"]),1)
+  
+dfsub <-rbind(t(a),t(b))
+
+kable(dfsub, #format = "latex",
+   booktabs = T,
+  caption = ' ') %>%
+  kable_styling(font_size = 9.5, latex_options =c("striped","hold_position"))%>%
+  pack_rows("Weighted Proportion", 1,4) %>%
+  pack_rows("Sample Propotion", 5,8)
+```
+
+
+
+# Bibliography
+
+1. Royal KD. Survey research methods: A guide for creating post-stratification weights to correct for sample bias. Educ Health Prof 2019; 2:48-50
+
+2. Midlife in the United States (MIDUS), A National Longitudinal Study of Health and Well-being: Documentation of Post-Stratification Weights Created for MIDUS3. URL: \url{http://midus.wisc.edu/Projects/MIDUS3/Documentation/M3_P1_DocumentationOfWeights_20181217.pdf}
+
+3. The Demographic Handbook of Armenia, 2019. URL: \url{https://www.armstat.am/file/article/demog_2019_2.pdf}
+
+\clearpage
+
+# Appendix
+
+```{r taban1, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+wdat %>% kable(format = "latex",
+   booktabs = T, caption = 'Population of Armenia by Marzes, Gender and Age') %>%
+  kable_styling(font_size = 7.5, latex_options =c("striped","hold_position"))
+```
+
+```{r tab1, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+# Adding Popilation proportion
+dist.sample %>% filter(Q1.Marz %in% c("Yerevan", "Aragatsotn")) %>%
+   kable(format = "latex", booktabs = T, caption = ' ') %>%
+  kable_styling(font_size = 9.5, latex_options =c("striped","hold_position"))
+```
+
+```{r subset1, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+covid %>% filter(ROWID %in% sample(2000, 10)) %>%
+  dplyr::select(Q1.Marz, Q2.Gender, Q3.Age, Q7.Home, Weight) %>% kable(format = "latex",
+   booktabs = T, caption = 'Random subset of data') %>%
+  kable_styling(font_size = 8, latex_options =c("striped","hold_position"))
+
+```
+
