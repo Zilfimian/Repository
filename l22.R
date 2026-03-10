@@ -560,17 +560,11 @@ print(is.null(opt.arg))
 
 
 # ============================================================
-# Chapter 9: Calling Functions — Code Pack
+# Chapter 9: Calling Functions
 # ============================================================
-# ------------------------------------------------------------
-# 9.1 Scoping
-# ------------------------------------------------------------
-
 # -------------------------
-# 9.1.1 Environments
+# 9.1.1 Environments (global, local, namespaces)
 # -------------------------
-cat("\n--- 9.1.1 Environments ---\n")
-
 # Global environment: user-created objects live here
 foo <- 4 + 5
 bar <- "stringtastic"
@@ -591,9 +585,6 @@ print(youthspeak)
 # -------------------------
 # 9.1.2 Search Path
 # -------------------------
-cat("\n--- 9.1.2 Search Path ---\n")
-
-cat("\nCurrent search() path:\n")
 print(search())
 
 # Demonstrate how R finds functions along the search path
@@ -606,20 +597,17 @@ cat("\nOwning environments for selected functions:\n")
 print(environment(seq))
 print(environment(arrows))
 
-# "cannot find" errors (wrapped in try so the script continues)
-cat("\nDemonstrate cannot find errors (handled with try):\n")
-try(neither.here(), silent = TRUE)
-try(print(nor.there), silent = TRUE)
-
+library(dplyr)
+print(search())
+neither.here()
 
 # -------------------------
 # 9.1.3 Reserved and Protected Names
 # -------------------------
-cat("\n--- 9.1.3 Reserved and Protected Names ---\n")
 
 # Trying to overwrite reserved names causes errors
 cat("\nAttempt to assign to NaN (should error):\n")
-try(NaN <- 5, silent = TRUE)
+NaN <- 5
 
 # Case sensitivity: these are allowed but confusing
 False <- "confusing"
@@ -644,21 +632,18 @@ print(ls())
 # Exercise
 # ------------------------------------------------------------
 # (a) First 20 items in methods package; total count
-cat("\n9.1(a) First 20 items in package:methods:\n")
 items_methods <- ls("package:methods")
 print(head(items_methods, 20))
 cat("Total items in package:methods: ")
 print(length(items_methods))
 
 # (b) Determine owning environment (namespace) for each function
-cat("\n9.1(b) Owning environments:\n")
 cat("read.table -> "); print(environment(read.table))
 cat("data       -> "); print(environment(data))
 cat("matrix     -> "); print(environment(matrix))
 cat("jpeg       -> "); print(environment(jpeg))
 
 # (c) Confirm smoothScatter is part of graphics package
-cat("\n9.1(c) Confirm smoothScatter in graphics package:\n")
 graphics_items <- ls("package:graphics")
 print(any(graphics_items == "smoothScatter"))
 
@@ -666,12 +651,9 @@ print(any(graphics_items == "smoothScatter"))
 # ------------------------------------------------------------
 # 9.2 Argument Matching
 # ------------------------------------------------------------
-cat("\n--- 9.2 Argument Matching ---\n")
-
 # -------------------------
 # 9.2.1 Exact matching
 # -------------------------
-cat("\n9.2.1 Exact matching examples:\n")
 bar <- matrix(data = 1:9, nrow = 3, ncol = 3,
               dimnames = list(c("A", "B", "C"), c("D", "E", "F")))
 print(bar)
@@ -686,27 +668,20 @@ print(bar)
 # -------------------------
 # 9.2.2 Partial matching
 # -------------------------
-cat("\n9.2.2 Partial matching examples:\n")
 bar <- matrix(nr = 3, di = list(c("A", "B", "C"), c("D", "E", "F")), nc = 3, dat = 1:9)
 print(bar)
 
-# Ambiguous partial tag example (should error)
-cat("\nAmbiguous partial matching example (handled with try):\n")
-try(matrix(nr = 3, di = list(c("A", "B", "C"), c("D", "E", "F")), nc = 3, d = 1:9), silent = TRUE)
+matrix(nro = 3, di = list(c("A", "B", "C"), c("D", "E", "F")), nc = 3, dat = 1:9)
 
+# Ambiguous partial tag example (should error)
+matrix(nr = 3, di = list(c("A", "B", "C"), c("D", "E", "F")), nc = 3, d = 1:9)
 # -------------------------
 # 9.2.3 Positional matching
 # -------------------------
-cat("\n9.2.3 Positional matching examples:\n")
-cat("args(matrix):\n")
-print(args(matrix))
-
 bar <- matrix(1:9, 3, 3, FALSE, list(c("A", "B", "C"), c("D", "E", "F")))
 print(bar)
 
-# Wrong positional usage (missing byrow) -> error
-cat("\nPositional matching error example (handled with try):\n")
-try(matrix(1:9, 3, 3, list(c("A", "B", "C"), c("D", "E", "F"))), silent = TRUE)
+dim(bar)
 
 # -------------------------
 # 9.2.4 Mixed matching
@@ -718,9 +693,8 @@ print(bar)
 # -------------------------
 # 9.2.5 Ellipsis (...)
 # -------------------------
-cat("\n9.2.5 Ellipsis examples:\n")
-cat("args(data.frame):\n")
-print(args(data.frame))
+args(data.frame)
+args(list)
 
 cat("args(plot):\n")
 print(args(plot))
@@ -789,7 +763,7 @@ print(in_dots)
 
 
 # ============================================================
-# Chapter 11: Writing Functions — Code Pack
+# Chapter 11: Writing Functions
 # ============================================================
 
 # ------------------------------------------------------------
@@ -799,8 +773,6 @@ print(in_dots)
 # -------------------------
 # 11.1.1 Function Creation (Fibonacci examples)
 # -------------------------
-cat("\n--- 11.1.1 Function Creation ---\n")
-
 # myfib: prints Fibonacci terms until > 150 (no args)
 myfib <- function(){
   fib.a <- 1
